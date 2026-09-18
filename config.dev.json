@@ -17,14 +17,13 @@
     "ignoreCommand": []
   },
   "adminBot": [
-    "61584608305717","100068914723350"
-  ],
+    "61584608305717"],
   "whiteListMode": {
     "enable": false,
     "whiteListIds": [],
     "notes": "if you enable this feature, only the ids in the whiteListIds section can use the bot"
   },
-  "nickNameBot": "Goat-Bot-V2",
+  "nickNameBot": "Goat-Bot-V3",
   "prefix": "-",
   "database": {
     "type": "sqlite",
@@ -108,7 +107,7 @@
   },
   "hideNotiMessage": {
     "commandNotFound": false,
-    "adminOnly": false,
+    "adminOnly": true,
     "threadBanned": false,
     "userBanned": false,
     "needRoleToUseCmd": false,
@@ -121,6 +120,7 @@
     "message_reaction": true,
     "message_unsend": true,
     "message_reply": true,
+    "message_edit" : true
     "event": true,
     "read_receipt": false,
     "typ": false,
@@ -132,7 +132,7 @@
     "updatePresence": true,
     "listenTyping": true,
     "logLevel": "error",
-    "selfListen": false,
+    "selfListen": true,
     "selfListenEvent": true,
     "autoMarkDelivery": false,
     "autoReconnect": false,
