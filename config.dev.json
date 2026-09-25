@@ -120,7 +120,6 @@
     "message_reaction": true,
     "message_unsend": true,
     "message_reply": true,
-    "message_edit" : true,
     "event": true,
     "read_receipt": false,
     "typ": false,
