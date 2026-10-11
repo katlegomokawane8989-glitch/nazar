@@ -26,7 +26,7 @@
   "nickNameBot": "Goat-Bot-V3",
   "prefix": "-",
   "noPrefix": true,
-  "noPrefixNotes": "When true, Bot admin (role 2) and developers
+  "noPrefixNotes": "When true, Bot Admins (role 2) and Developers (role 4) can run commands without the prefix",
   "database": {
     "type": "sqlite",
     "uriMongodb": "",
