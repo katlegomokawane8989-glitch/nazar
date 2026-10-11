@@ -25,6 +25,8 @@
   },
   "nickNameBot": "Goat-Bot-V3",
   "prefix": "-",
+  "noPrefix": true,
+  "noPrefixNotes": "When true, Bot admin (role 2) and developers
   "database": {
     "type": "sqlite",
     "uriMongodb": "",
