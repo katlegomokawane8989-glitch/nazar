@@ -1,90 +1,171 @@
-const axios = require('axios');
-const fs = require('fs-extra');
+const axios = require("axios");
+const fs = require("fs-extra");
+const path = require("path");
 
 const { getStreamFromURL } = global.utils;
 
-const pathData = __dirname + '/assets/hubble/nasa.json';
-if (!fs.existsSync(__dirname + '/assets/hubble'))
-	fs.mkdirSync(__dirname + '/assets/hubble');
+const ASSET_DIR = path.join(__dirname, "assets", "hubble");
+const DATA_PATH = path.join(ASSET_DIR, "nasa.json");
 
-let hubbleData;
+let hubbleData = [];
 
 module.exports = {
-	config: {
-		name: "hubble",
-		version: "1.3",
-		author: "NTKhang",
-		countDown: 5,
-		role: 0,
-		description: {
-			vi: "Xem ảnh từ Hubble",
-			en: "View Hubble images"
-		},
-		category: "owner",
-		guide: {
-			en: "{pn} <date (mm-dd)>"
-		}
-	},
+config: {
+name: "hubble",
+version: "1.4",
+author: "NTKhang",
+countDown: 5,
+role: 0,
+description: {
+vi: "Xem ảnh từ Hubble",
+en: "View Hubble images"
+},
+category: "media",
+guide: {
+en: "{pn} <month-day>\nExample: {pn} 06-15"
+}
+},
 
-	langs: {
-		vi: {
-			invalidDate: "Ngày tháng bạn nhập vào không hợp lệ, vui lòng nhập lại theo định dạng mm-dd",
-			noImage: "Không có ảnh nào được tìm thấy trong ngày này"
-		},
-		en: {
-			invalidDate: "The date you entered is invalid, please enter again in the mm-dd format",
-			noImage: "No images were found on this day"
-		}
+langs: {
+	vi: {
+		invalidDate: "❌ Ngày không hợp lệ. Hãy nhập theo định dạng MM-DD, ví dụ 06-15.",
+		noImage: "⭕ Không tìm thấy ảnh cho ngày này.",
+		error: "❌ Không thể tải ảnh Hubble. Vui lòng thử lại sau."
 	},
-
-	onLoad: async function () {
-		if (!fs.existsSync(pathData)) {
-			const res = await axios.get('https://raw.githubusercontent.com/ntkhang03/Goat-Bot-V2/main/scripts/cmds/assets/hubble/nasa.json');
-			fs.writeFileSync(pathData, JSON.stringify(res.data, null, 2));
-		}
-		hubbleData = JSON.parse(fs.readFileSync(pathData));
-	},
-
-	onStart: async function ({ message, args, getLang }) {
-		const date = args[0] || "";
-		const dateText = checkValidDate(date);
-		if (!date || !dateText)
-			return message.reply(getLang('invalidDate'));
-		const data = hubbleData.find(e => e.date.startsWith(dateText));
-		if (!data)
-			return message.reply(getLang('noImage'));
-		const { image, name, caption, url } = data;
-		const getImage = await getStreamFromURL('https://imagine.gsfc.nasa.gov/hst_bday/images/' + image);
-		const msg = `📅 Date: ${dateText}\n🌀 Name: ${name}\n📖 Caption: ${caption}\n🔗 Source: ${url}`;
-		message.reply({
-			body: msg,
-			attachment: getImage
-		});
+	en: {
+		invalidDate: "❌ Invalid date. Use MM-DD format, for example: 06-15.",
+		noImage: "⭕ No Hubble image was found for this date.",
+		error: "❌ Could not load the Hubble image. Please try again later."
 	}
+},
+
+onLoad: async function () {
+	await fs.ensureDir(ASSET_DIR);
+
+	try {
+		if (await fs.pathExists(DATA_PATH)) {
+			const savedData = await fs.readJson(DATA_PATH);
+
+			if (Array.isArray(savedData) && savedData.length > 0) {
+				hubbleData = savedData;
+				return;
+			}
+		}
+	} catch (error) {
+		console.error("[HUBBLE] Cached dataset could not be read:", error.message);
+	}
+
+	const sources = [
+		"https://raw.githubusercontent.com/ntkhang03/Goat-Bot-V2/main/scripts/cmds/assets/hubble/nasa.json"
+	];
+
+	for (const url of sources) {
+		try {
+			const response = await axios.get(url, {
+				timeout: 20000,
+				headers: {
+					"User-Agent": "Mozilla/5.0",
+					"Accept": "application/json"
+				}
+			});
+
+			if (!Array.isArray(response.data) || response.data.length === 0) {
+				throw new Error("The dataset is empty or has an invalid format.");
+			}
+
+			hubbleData = response.data;
+			await fs.writeJson(DATA_PATH, hubbleData, { spaces: 2 });
+
+			console.log(`[HUBBLE] Loaded ${hubbleData.length} records.`);
+			return;
+		} catch (error) {
+			console.error("[HUBBLE] Dataset download failed:", error.message);
+		}
+	}
+
+	console.error("[HUBBLE] Unable to load the NASA image dataset.");
+},
+
+onStart: async function ({ message, args, getLang }) {
+	try {
+		const dateText = checkValidDate(args[0] || "");
+
+		if (!dateText) {
+			return message.reply(getLang("invalidDate"));
+		}
+
+		if (!Array.isArray(hubbleData) || hubbleData.length === 0) {
+			return message.reply(
+				"❌ The Hubble dataset could not be loaded. Check your Render logs and try again."
+			);
+		}
+
+		const normalizedDate = dateText.toLowerCase();
+
+		const data = hubbleData.find(item => {
+			if (!item || typeof item.date !== "string") return false;
+
+			return item.date.trim().toLowerCase() === normalizedDate;
+		});
+
+		if (!data) {
+			return message.reply(getLang("noImage"));
+		}
+
+		if (!data.image) {
+			return message.reply(getLang("noImage"));
+		}
+
+		const imageURL = /^https?:\/\//i.test(data.image)
+			? data.image
+			: "https://imagine.gsfc.nasa.gov/hst_bday/images/" +
+				data.image.replace(/^\/+/, "");
+
+		const imageStream = await getStreamFromURL(imageURL);
+
+		const msg =
+			`📅 Date: ${data.date}\n` +
+			`🌀 Name: ${data.name || "Unknown"}\n` +
+			`📖 Caption: ${data.caption || "No caption available"}\n` +
+			`🔗 Source: ${data.url || imageURL}`;
+
+		return message.reply({
+			body: msg,
+			attachment: imageStream
+		});
+	} catch (error) {
+		console.error("[HUBBLE COMMAND]", error);
+		return message.reply(getLang("error"));
+	}
+}
+
 };
 
-const monthText = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthText = [
+"January", "February", "March", "April",
+"May", "June", "July", "August",
+"September", "October", "November", "December"
+];
+
 function checkValidDate(date) {
-	const dateArr = date.split(/[-/]/);
-	if (dateArr.length != 2)
-		return false;
-	let day;
-	let month;
-	if (dateArr[0] < 13) {
-		day = dateArr[1];
-		month = dateArr[0];
-	}
-	else {
-		day = dateArr[0];
-		month = dateArr[1];
-	}
-	if (month < 1 || month > 12)
-		return false;
-	if (day < 1 || day > 31)
-		return false;
-	if (month === 2 && day > 29)
-		return false;
-	if ([4, 6, 9, 11].includes(month) && day > 30)
-		return false;
-	return monthText[month - 1] + ' ' + parseInt(day);
+if (typeof date !== "string") return null;
+
+const match = date.trim().match(/^(\d{1,2})[-/](\d{1,2})$/);
+
+if (!match) return null;
+
+const month = Number(match[1]);
+const day = Number(match[2]);
+
+if (month < 1 || month > 12 || day < 1) return null;
+
+const daysInMonth = [
+	31, 29, 31, 30, 31, 30,
+	31, 31, 30, 31, 30, 31
+];
+
+if (day > daysInMonth[month - 1]) return null;
+
+return `${monthText[month - 1]} ${day}`;
+
 }
