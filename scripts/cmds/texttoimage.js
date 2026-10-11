@@ -5,7 +5,7 @@ module.exports = {
 		name: "texttoimage",
 		aliases: ["midjourney", "openjourney", "text2image"],
 		version: "1.3",
-		author: "NTKhang",
+		author: "NZR",
 		countDown: 5,
 		role: 0,
 		description: {
@@ -15,8 +15,9 @@ module.exports = {
 		category: "info",
 		guide: {
 			vi: "   {pn} <prompt>: tạo ảnh từ văn bản của bạn"
-				+ "\n    Ví dụ: {pn} mdjrny-v4 create a gta style house, gta, 4k, hyper detailed, cinematic, realistic, unreal engine, cinematic lighting, bright lights"
-				+ "\n    Example: {pn} mdjrny-v4 create a gta style house, gta, 4k, hyper detailed, cinematic, realistic, unreal engine, cinematic lighting, bright lights"
+				+ "\n    Ví dụ: {pn} create a realistic house, 4k, cinematic lighting",
+			en: "   {pn} <prompt>: create an image from your text"
+				+ "\n    Example: {pn} create a realistic house, 4k, cinematic lighting"
 		}
 	},
 
@@ -25,26 +26,37 @@ module.exports = {
 			syntaxError: "⚠️ Vui lòng nhập prompt",
 			error: "❗ Đã có lỗi xảy ra, vui lòng thử lại sau:\n%1",
 			serverError: "❗ Server đang quá tải, vui lòng thử lại sau",
-			missingGoatApiKey: "❗ Chưa cài đặt apikey cho GoatBot, vui lòng truy cập goatbot.tk để lấy apikey và cài đặt vào file configCommands.json > envGlobal.goatbotApikey và lưu lại"
+			missingGoatApiKey: "❗ Chưa cài đặt apikey cho GoatBot. Hãy kiểm tra configCommands.json > envGlobal.goatbotApikey."
 		},
 		en: {
-			syntaxError: "⚠️ Please enter prompt",
-			error: "❗ An error has occurred, please try again later:\n%1",
-			serverError: "❗ Server is overloaded, please try again later",
-			missingGoatApiKey: "❗ Not set apikey for GoatBot, please visit goatbot.tk to get apikey and set it to configCommands.json > envGlobal.goatbotApikey and save"
+			syntaxError: "⚠️ Please enter a prompt.",
+			error: "❗ An error occurred. Please try again later:\n%1",
+			serverError: "❗ The image server is busy. Please try again later.",
+			missingGoatApiKey: "❗ GoatBot API key is missing. Set envGlobal.goatbotApikey in configCommands.json."
 		}
 	},
 
 	onStart: async function ({ message, args, getLang, envGlobal }) {
-		const goatBotApi = new GoatBotApis(envGlobal.goatbotApikey);
-		if (!goatBotApi.isSetApiKey())
-			return message.reply(getLang("missingGoatApiKey"));
-		const prompt = args.join(" ");
+		const prompt = args.join(" ").trim();
+
 		if (!prompt)
 			return message.reply(getLang("syntaxError"));
 
 		try {
-			const { data: imageStream } = await goatBotApi.api({
+			const apiKey = envGlobal?.goatbotApikey;
+
+			if (!apiKey)
+				return message.reply(getLang("missingGoatApiKey"));
+
+			if (typeof GoatBotApis !== "function")
+				throw new Error("GoatBotApis is unavailable. Check your GoatBot version.");
+
+			const goatBotApi = new GoatBotApis(apiKey);
+
+			if (!goatBotApi.isSetApiKey())
+				return message.reply(getLang("missingGoatApiKey"));
+
+			const response = await goatBotApi.api({
 				url: "/image/mdjrny",
 				method: "GET",
 				params: {
@@ -55,6 +67,11 @@ module.exports = {
 				responseType: "stream"
 			});
 
+			const imageStream = response?.data;
+
+			if (!imageStream)
+				throw new Error("The image API returned no image.");
+
 			imageStream.path = "image.jpg";
 
 			return message.reply({
@@ -62,7 +79,15 @@ module.exports = {
 			});
 		}
 		catch (err) {
-			return message.reply(getLang("error", err.data?.message || err.message));
+			const details =
+				err?.response?.data?.message ||
+				err?.data?.message ||
+				err?.message ||
+				"Unknown error";
+
+			console.error("[texttoimage]", err);
+
+			return message.reply(getLang("error", details));
 		}
 	}
 };
